@@ -21,6 +21,27 @@
 
 ----------------------------------------------
 
+# 14.14.0 Release notes
+
+### Enhancements
+* Enable automatic client reset recovery for audit Realm files ([PR #8072](https://github.com/realm/realm-core/pull/8072)).
+
+### Fixed
+* None.
+
+### Breaking changes
+* None.
+
+### Compatibility
+* Fileformat: Generates files with format v24. Reads and automatically upgrade from fileformat v10. If you want to upgrade from an earlier file format version you will have to use RealmCore v13.x.y or earlier.
+
+-----------
+
+### Internals
+* None.
+
+----------------------------------------------
+
 # 14.13.5 Release notes
 
 ### Enhancements
