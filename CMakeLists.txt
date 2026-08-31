@@ -249,17 +249,19 @@ if(UNIX)
     set(CMAKE_REQUIRED_DEFINITIONS "-D_LARGEFILE_SOURCE" "-D_LARGEFILE64_SOURCE")
     # Use readdir64 if available.
     check_symbol_exists(readdir64 "dirent.h" REALM_HAVE_READDIR64)
-    cmake_reset_check_state()
-    set(CMAKE_REQUIRED_DEFINITIONS "-D_POSIX_C_SOURCE=200112L")
-    check_symbol_exists(posix_fallocate "fcntl.h" REALM_HAVE_POSIX_FALLOCATE)
-    if(REALM_HAVE_POSIX_FALLOCATE)
-        add_compile_definitions("_POSIX_C_SOURCE=200112L")
+
+    if(NOT ANDROID)
+        cmake_reset_check_state()
+        set(CMAKE_REQUIRED_DEFINITIONS "-D_POSIX_C_SOURCE=200112L")
+        check_symbol_exists(posix_fallocate "fcntl.h" REALM_HAVE_POSIX_FALLOCATE)
+        if(REALM_HAVE_POSIX_FALLOCATE)
+            add_compile_definitions("_POSIX_C_SOURCE=200112L")
+        endif()
     endif()
     cmake_pop_check_state()
 endif()
 
 # Options (passed to CMake)
-option(REALM_ENABLE_SYNC "Enable synchronized realms." ON)
 option(REALM_BUILD_TEST_CLIENT "Build the test client" OFF)
 option(REALM_ENABLE_ASSERTIONS "Enable assertions in release mode." OFF)
 option(REALM_ENABLE_ALLOC_SET_ZERO "Zero all allocations." OFF)
@@ -268,10 +270,8 @@ if(NOT EMSCRIPTEN)
 endif()
 option(REALM_ENABLE_MEMDEBUG "Add additional memory checks" OFF)
 option(REALM_VALGRIND "Tell the test suite we are running with valgrind" OFF)
-option(REALM_SYNC_MULTIPLEXING "Enables/disables sync session multiplexing by default" ON)
 set(REALM_MAX_BPNODE_SIZE "1000" CACHE STRING "Max B+ tree node size.")
 option(REALM_ENABLE_GEOSPATIAL "Enable geospatial types and queries." ON)
-option(REALM_APP_SERVICES "Enable the default app services implementation." ON)
 
 # Find dependencies
 set(THREADS_PREFER_PTHREAD_FLAG ON)
@@ -287,15 +287,7 @@ endif()
 find_package(Backtrace)
 set(REALM_HAVE_BACKTRACE ${Backtrace_FOUND})
 
-if(REALM_ENABLE_SYNC)
-    option(REALM_FORCE_OPENSSL "Always use OpenSSL for SSL needs, regardless of target platform." OFF)
-    if(CMAKE_SYSTEM_NAME MATCHES "^Windows|Linux|Android")
-        set(REALM_NEEDS_OPENSSL TRUE)
-    endif()
-    if(REALM_NEEDS_OPENSSL OR REALM_FORCE_OPENSSL)
-        option(REALM_INCLUDE_CERTS "Include a list of trust certificates in the build for OpenSSL certificate verification" ON)
-    endif()
-elseif(REALM_ENABLE_ENCRYPTION AND CMAKE_SYSTEM_NAME MATCHES "Linux|Android")
+if(REALM_ENABLE_ENCRYPTION AND CMAKE_SYSTEM_NAME MATCHES "Linux|Android")
     set(REALM_NEEDS_OPENSSL TRUE)
 endif()
 
@@ -314,34 +306,6 @@ if(REALM_NEEDS_OPENSSL OR REALM_FORCE_OPENSSL)
     set(REALM_HAVE_OPENSSL ON)
     option(REALM_USE_SYSTEM_OPENSSL_PATHS "Use the system OpenSSL certificate store (specified by the OPENSSLDIR environment variable) at runtime for TLS handshake." ${_REALM_USE_OPENSSL_DEFAULT_VERIFY_PATHS})
     string(REGEX MATCH "^([0-9]+)\\.([0-9]+)" OPENSSL_VERSION_MAJOR_MINOR "${OPENSSL_VERSION}")
-elseif(APPLE)
-    set(REALM_HAVE_SECURE_TRANSPORT "1")
-endif()
-
-# Use Zlib for Sync, but allow integrators to override it
-# Don't use find_library(ZLIB) on Apple platforms - it hardcodes the path per platform,
-# so for an iOS build it'll use the path from the Device plaform, which is an error on Simulator.
-# Just use -lz and let Xcode figure it out
-# Emscripten does provide Zlib, but it doesn't work with find_package and is handled specially
-if(NOT APPLE AND NOT EMSCRIPTEN AND NOT TARGET ZLIB::ZLIB)
-    if(WIN32 OR (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND REALM_LINUX_TOOLCHAIN))
-        find_package(ZLIB)
-        if (NOT ZLIB_FOUND)
-            realm_acquire_dependency(zlib ${DEP_ZLIB_VERSION} ZLIB_CMAKE_INCLUDE_FILE)
-            include(${ZLIB_CMAKE_INCLUDE_FILE})
-        endif()
-    elseif(ANDROID)
-        # On Android FindZLIB chooses the static libz over the dynamic one, but this leads to issues
-        # (see https://github.com/android/ndk/issues/1179)
-        # We want to link against the stub library instead of statically linking anyway,
-        # so we hack find_library to only consider shared object libraries when looking for libz
-        set(_CMAKE_FIND_LIBRARY_SUFFIXES_orig ${CMAKE_FIND_LIBRARY_SUFFIXES})
-        set(CMAKE_FIND_LIBRARY_SUFFIXES .so)
-    endif()
-    find_package(ZLIB REQUIRED)
-    if(ANDROID)
-        set(CMAKE_FIND_LIBRARY_SUFFIXES ${_CMAKE_FIND_LIBRARY_SUFFIXES_orig})
-    endif()
 endif()
 
 # Store configuration in header file
@@ -380,9 +344,6 @@ set(REALM_EXPORTED_TARGETS
         RealmFFI
         RealmFFIStatic
         )
-if(REALM_ENABLE_SYNC)
-    list(APPEND REALM_EXPORTED_TARGETS Sync)
-endif()
 export(TARGETS ${REALM_EXPORTED_TARGETS} NAMESPACE Realm:: FILE RealmTargets.cmake)
 configure_file(tools/cmake/RealmConfig.cmake.in ${CMAKE_CURRENT_BINARY_DIR}/RealmConfig.cmake @ONLY)
 configure_file(tools/cmake/AcquireRealmDependency.cmake ${CMAKE_CURRENT_BINARY_DIR}/AcquireRealmDependency.cmake @ONLY)

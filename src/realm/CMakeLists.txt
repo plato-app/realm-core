@@ -47,7 +47,6 @@ set(REALM_SOURCES
     mixed.cpp
     obj.cpp
     object_converter.cpp
-    global_key.cpp
     query_engine.cpp
     query_expression.cpp
     query_value.cpp
@@ -77,7 +76,6 @@ set(UTIL_SOURCES
     util/base64.cpp
     util/basic_system_errors.cpp
     util/cli_args.cpp
-    util/compression.cpp
     util/encrypted_file_mapping.cpp
     util/fifo_helper.cpp
     util/file.cpp
@@ -157,7 +155,6 @@ set(REALM_INSTALL_HEADERS
     error_codes.h
     error_codes.hpp
     exceptions.hpp
-    global_key.hpp
     group.hpp
     group_writer.hpp
     handover_defs.hpp
@@ -226,7 +223,6 @@ set(REALM_INSTALL_HEADERS
     util/buffer_stream.hpp
     util/cf_ptr.hpp
     util/checked_mutex.hpp
-    util/compression.hpp
     util/encrypted_file_mapping.hpp
     util/errno.hpp
     util/features.h
@@ -306,6 +302,10 @@ if (REALM_ENABLE_GEOSPATIAL)
     )
 
     list(APPEND REALM_OBJECT_FILES $<TARGET_OBJECTS:s2geometry>)
+
+    install(FILES ../external/mpark/variant.hpp
+        DESTINATION include/external/mpark
+        COMPONENT devel)
 endif()
 
 add_library(Storage STATIC
@@ -395,22 +395,6 @@ if(REALM_HAVE_OPENSSL AND (UNIX OR WIN32))
     target_link_libraries(Storage PUBLIC OpenSSL::Crypto)
 endif()
 
-# Use Zlib if the imported target is defined, otherise use -lz on Apple platforms
-if(TARGET ZLIB::ZLIB)
-    target_link_libraries(Storage PUBLIC ZLIB::ZLIB)
-elseif(APPLE)
-    target_link_options(Storage PUBLIC "-lz")
-elseif(EMSCRIPTEN)
-    target_compile_options(Storage PUBLIC "-sUSE_ZLIB=1")
-    target_link_options(Storage PUBLIC "-sUSE_ZLIB=1")
-else()
-    message(FATAL_ERROR "No zlib dependency defined")
-endif()
-
-if(APPLE)
-    target_link_libraries(Storage PUBLIC "-lcompression")
-endif()
-
 install(TARGETS Storage EXPORT realm
         ARCHIVE DESTINATION lib
         COMPONENT devel)
@@ -430,9 +414,6 @@ install(FILES ${PROJECT_BINARY_DIR}/src/realm/util/config.h
 
 add_subdirectory(parser)
 add_subdirectory(object-store)
-if (REALM_ENABLE_SYNC)
-    add_subdirectory(sync)
-endif()
 if(NOT REALM_BUILD_LIB_ONLY AND NOT WINDOWS_STORE)
     add_subdirectory(exec)
     set_macos_only(exec)
